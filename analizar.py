@@ -326,17 +326,21 @@ def construir_svg_clases(top10_clases):
         x = espacio + i * (ancho_barra + espacio)
         y = alto_grafico - alto_barra
         barras.append(
-            f'<rect x="{x}" y="{y:.1f}" width="{ancho_barra}" height="{alto_barra:.1f}" '
-            f'fill="#2a78d6" rx="3"><title>{html.escape(clase)}: {cantidad}</title></rect>'
-            f'<text x="{x + ancho_barra / 2}" y="{y - 6:.1f}" font-size="11" '
-            f'text-anchor="middle" fill="#0b0b0b" class="valor-barra">{cantidad}</text>'
-            f'<text x="{x + ancho_barra / 2}" y="{alto_grafico + 16}" font-size="10" '
-            f'text-anchor="middle" fill="#52514e">{html.escape(clase)}</text>'
+            f'<rect class="barra" x="{x}" y="{y:.1f}" width="{ancho_barra}" '
+            f'height="{alto_barra:.1f}" rx="4">'
+            f'<title>{html.escape(clase)}: {cantidad} registros</title></rect>'
+            f'<text x="{x + ancho_barra / 2}" y="{y - 8:.1f}" class="valor-barra">{cantidad}</text>'
+            f'<text x="{x + ancho_barra / 2}" y="{alto_grafico + 18}" class="etiqueta-barra">{html.escape(clase)}</text>'
         )
+    linea_base = (
+        f'<line x1="{espacio / 2:.1f}" y1="{alto_grafico}" '
+        f'x2="{ancho_svg - espacio / 2:.1f}" y2="{alto_grafico}" class="linea-base" />'
+    )
     return (
         f'<svg viewBox="0 0 {ancho_svg} {alto_svg}" width="100%" '
         f'style="max-width:{ancho_svg}px; height:auto;" role="img" '
-        f'aria-label="Diez clasificaciones mas frecuentes">' + "".join(barras) + "</svg>"
+        f'aria-label="Diez clasificaciones mas frecuentes, de mayor a menor cantidad de registros">'
+        + linea_base + "".join(barras) + "</svg>"
     )
 
 
@@ -361,77 +365,136 @@ def generar_html(stats, hora_generacion_utc, commit_sha):
     def celda_year(valor):
         return str(valor) if valor is not None else "sin dato"
 
+    def _chip_fall(valor):
+        clase = "fell" if valor == "Fell" else "found"
+        return f'<span class="chip {clase}">{html.escape(valor)}</span>'
+
     filas_ranking_masa = "\n".join(
         f"<tr><td>{i + 1}</td><td>{html.escape(m['name'])}</td>"
-        f"<td>{html.escape(m['recclass'])}</td><td>{celda_masa(m['mass'])}</td></tr>"
+        f"<td>{html.escape(m['recclass'])}</td><td class=\"num\">{celda_masa(m['mass'])}</td></tr>"
         for i, m in enumerate(top10_masa)
     )
 
-    filas_ultimos10 = "\n".join(
-        f"<tr><td>{m['id']}</td><td>{html.escape(m['name'])}</td>"
-        f"<td>{html.escape(m['recclass'])}</td><td>{celda_masa(m['mass'])}</td>"
-        f"<td>{html.escape(m['fall'])}</td><td>{celda_year(m['year'])}</td>"
-        f"<td>{celda_coord(m['reclat'])}</td><td>{celda_coord(m['reclong'])}</td></tr>"
+    masa_media_texto = f"{masa_media:,.2f} g" if masa_media is not None else "sin dato"
+
+    filas_ultimos10_tbody = "\n".join(
+        f"<tr><td class=\"num\">{m['id']}</td><td>{html.escape(m['name'])}</td>"
+        f"<td>{html.escape(m['recclass'])}</td><td class=\"num\">{celda_masa(m['mass'])}</td>"
+        f"<td>{_chip_fall(m['fall'])}</td><td class=\"num\">{celda_year(m['year'])}</td>"
+        f"<td class=\"num\">{celda_coord(m['reclat'])}</td><td class=\"num\">{celda_coord(m['reclong'])}</td></tr>"
         for m in ultimos10
     )
-
-    masa_media_texto = f"{masa_media:,.2f} g" if masa_media is not None else "sin dato"
 
     return f"""<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Informe de meteoritos (Meteorite Landings, NASA)</title>
+<title>Informe de meteoritos &middot; Meteorite Landings (NASA)</title>
 <style>
-  :root {{ color-scheme: light dark; }}
-  body {{ font-family: system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1rem;
-          line-height: 1.5; color: #0b0b0b; background: #fcfcfb; }}
-  svg .valor-barra {{ fill: #0b0b0b; }}
-  @media (prefers-color-scheme: dark) {{
-    body {{ color: #f0efec; background: #1a1a19; }}
-    td, th {{ border-color: #3a3a38 !important; }}
-    .aviso {{ background: rgba(230,160,40,0.14) !important; }}
-    svg .valor-barra {{ fill: #f0efec; }}
+  :root {{
+    color-scheme: light;
+    --page:      #f9f9f7;
+    --surface:   #fcfcfb;
+    --ink:       #0b0b0b;
+    --ink-2:     #52514e;
+    --ink-muted: #898781;
+    --border:    rgba(11,11,11,0.10);
+    --grid:      #e1e0d9;
+    --series-1:  #2a78d6;  /* blue: total / Fell */
+    --series-3:  #1baf7a;  /* aqua: Found */
+    --tint-1:    rgba(42,120,214,0.08);
+    --tint-3:    rgba(27,175,122,0.10);
+    --shadow:    0 1px 2px rgba(11,11,11,0.04), 0 8px 24px -16px rgba(11,11,11,0.18);
   }}
-  h1 {{ margin-bottom: 0.2rem; font-size: 1.5rem; }}
-  .subtitulo {{ color: #52514e; margin-top: 0; }}
-  .aviso {{ background: rgba(230,160,40,0.12); border-left: 4px solid #d98c1a; border-radius: 6px;
-            padding: 0.8rem 1rem; margin: 1rem 0; font-size: 0.92rem; }}
-  .indicadores {{ display: flex; gap: 1.2rem; flex-wrap: wrap; margin: 1.5rem 0; }}
-  .indicador {{ background: rgba(42,120,214,0.08); border-radius: 10px; padding: 0.8rem 1.1rem; min-width: 160px; }}
-  .indicador .valor {{ font-size: 1.4rem; font-weight: 700; }}
-  .indicador .etiqueta {{ font-size: 0.82rem; color: #52514e; }}
-  table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.85rem; }}
-  th, td {{ border: 1px solid #d8d6d0; padding: 0.35rem 0.5rem; text-align: left; }}
-  th {{ background: rgba(42,120,214,0.08); }}
-  .tabla-scroll {{ overflow-x: auto; }}
-  footer {{ margin-top: 2rem; font-size: 0.85rem; color: #52514e; }}
-  a {{ color: #2a78d6; }}
-  code {{ font-size: 0.85em; }}
+  :root:where(:not([data-theme="light"])) {{
+    @media (prefers-color-scheme: dark) {{
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --ink-muted: #898781;
+      --border: rgba(255,255,255,0.10); --grid: #2c2c2a;
+      --series-1: #3987e5; --series-3: #199e70;
+      --tint-1: rgba(57,135,229,0.12); --tint-3: rgba(25,158,112,0.14);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -16px rgba(0,0,0,0.5);
+    }}
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; padding: 2.5rem 1rem 4rem; background: var(--page); color: var(--ink);
+    line-height: 1.55; font-size: 16px;
+  }}
+  main {{
+    max-width: 960px; margin: 0 auto; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow);
+    padding: 2.2rem clamp(1.2rem, 4vw, 2.8rem) 2.6rem;
+  }}
+  h1 {{ margin: 0 0 0.3rem; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; }}
+  h2 {{ font-size: 1.1rem; font-weight: 700; margin: 2.2rem 0 0.8rem; padding-top: 1.4rem;
+        border-top: 1px solid var(--grid); }}
+  .subtitulo {{ color: var(--ink-2); margin: 0 0 1.1rem; font-size: 0.95rem; }}
+  .subtitulo a {{ color: inherit; }}
+  a {{ color: var(--series-1); text-decoration: none; }}
+  a:hover {{ text-decoration: underline; }}
+  .meta {{ display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center;
+           font-size: 0.82rem; color: var(--ink-muted); margin: 0 0 1.6rem; }}
+  .meta code {{ background: var(--tint-1); color: var(--ink-2); border-radius: 5px;
+                padding: 0.1rem 0.4rem; font-size: 0.82em; }}
+
+  .indicadores {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                   gap: 0.9rem; margin: 0 0 0.4rem; }}
+  .indicador {{ background: var(--tint-1); border: 1px solid var(--border); border-radius: 12px;
+                padding: 0.9rem 1.05rem; }}
+  .indicador .valor {{ font-size: 1.55rem; font-weight: 800; font-variant-numeric: tabular-nums;
+                        letter-spacing: -0.01em; }}
+  .indicador .etiqueta {{ font-size: 0.76rem; color: var(--ink-2); text-transform: uppercase;
+                           letter-spacing: 0.03em; margin-top: 0.15rem; }}
+
+  svg .barra {{ fill: var(--series-1); transition: opacity 0.1s; }}
+  svg .barra:hover {{ opacity: 0.8; }}
+  svg .valor-barra {{ fill: var(--ink); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }}
+  svg .etiqueta-barra {{ fill: var(--ink-2); font-size: 10px; }}
+  svg .linea-base {{ stroke: var(--grid); stroke-width: 1; }}
+
+  p.nota {{ color: var(--ink-2); font-size: 0.88rem; margin-top: -0.3rem; }}
+
+  .tabla-scroll {{ overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 0.84rem; min-width: 480px; }}
+  th, td {{ padding: 0.5rem 0.65rem; text-align: left; border-bottom: 1px solid var(--grid); }}
+  td.num, th.num {{ font-variant-numeric: tabular-nums; text-align: right; }}
+  thead th {{ background: var(--tint-1); color: var(--ink-2); font-size: 0.74rem;
+              text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700;
+              position: sticky; top: 0; }}
+  tbody tr:nth-child(even) {{ background: color-mix(in srgb, var(--ink) 3%, transparent); }}
+  tbody tr:hover {{ background: var(--tint-1); }}
+  tbody tr:last-child td {{ border-bottom: none; }}
+
+  .chip {{ display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem;
+           font-weight: 600; color: var(--ink); white-space: nowrap; }}
+  .chip::before {{ content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none; }}
+  .chip.fell::before {{ background: var(--series-1); }}
+  .chip.found::before {{ background: var(--series-3); }}
+
+  footer {{ margin-top: 2.4rem; padding-top: 1.2rem; border-top: 1px solid var(--grid);
+            font-size: 0.8rem; color: var(--ink-muted); }}
+  footer p {{ margin: 0.3rem 0; }}
 </style>
 </head>
 <body>
-  <h1>Informe de meteoritos (Meteorite Landings, NASA)</h1>
-  <p class="subtitulo">{html.escape(NOMBRE_ESTUDIANTE)} &middot;
-    Fuente: <a href="{URL_FUENTE}">NASA Open Data &ndash; Meteorite Landings</a>
-    (datos de The Meteoritical Society; CSV original:
-    <a href="{URL_CSV_ORIGINAL}">Meteorite_Landings.csv</a>)</p>
+<main>
+  <h1>Informe de meteoritos</h1>
+  <p class="subtitulo">Meteorite Landings &middot; {html.escape(NOMBRE_ESTUDIANTE)} &middot;
+    fuente: <a href="{URL_FUENTE}">NASA Open Data</a> (The Meteoritical Society &middot;
+    <a href="{URL_CSV_ORIGINAL}">CSV original</a>)</p>
 
-  <p class="aviso"><strong>Copia educativa: contiene modificaciones simuladas.</strong>
-    Los registros agregados o alterados durante esta practica de CI/CD son simulaciones
-    para demostrar el flujo de validacion y publicacion; no representan correcciones ni
-    aportes a la base de datos original de The Meteoritical Society / NASA.</p>
-
-  <p>Generado: <strong>{hora_generacion_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC</strong><br>
-     Commit: <code>{html.escape(commit_sha)}</code></p>
+  <p class="meta">Generado <strong>{hora_generacion_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC</strong>
+    &middot; commit <code>{html.escape(commit_sha)}</code></p>
 
   <div class="indicadores">
-    <div class="indicador"><div class="valor">{total}</div><div class="etiqueta">Registros totales</div></div>
-    <div class="indicador"><div class="valor">{fell}</div><div class="etiqueta">Fell (caida observada)</div></div>
-    <div class="indicador"><div class="valor">{found}</div><div class="etiqueta">Found (hallazgo posterior)</div></div>
-    <div class="indicador"><div class="valor">{masa_media_texto}</div><div class="etiqueta">Masa media (solo valores disponibles)</div></div>
-    <div class="indicador"><div class="valor">{faltantes_masa}</div><div class="etiqueta">Registros sin dato de masa</div></div>
+    <div class="indicador"><div class="valor">{total:,}</div><div class="etiqueta">Registros totales</div></div>
+    <div class="indicador"><div class="valor">{fell:,}</div><div class="etiqueta">Fell &middot; caida observada</div></div>
+    <div class="indicador"><div class="valor">{found:,}</div><div class="etiqueta">Found &middot; hallazgo posterior</div></div>
+    <div class="indicador"><div class="valor">{masa_media_texto}</div><div class="etiqueta">Masa media disponible</div></div>
+    <div class="indicador"><div class="valor">{faltantes_masa:,}</div><div class="etiqueta">Sin dato de masa</div></div>
   </div>
 
   <h2>Diez clasificaciones (recclass) mas frecuentes</h2>
@@ -440,7 +503,7 @@ def generar_html(stats, hora_generacion_utc, commit_sha):
   <h2>Ranking: diez meteoritos de mayor masa</h2>
   <div class="tabla-scroll">
   <table>
-    <thead><tr><th>#</th><th>name</th><th>recclass</th><th>mass (g)</th></tr></thead>
+    <thead><tr><th>#</th><th>name</th><th>recclass</th><th class="num">mass (g)</th></tr></thead>
     <tbody>
     {filas_ranking_masa}
     </tbody>
@@ -448,26 +511,26 @@ def generar_html(stats, hora_generacion_utc, commit_sha):
   </div>
 
   <h2>Ultimos diez registros del CSV</h2>
-  <p>En el orden del archivo (no por masa), para poder comprobar las incorporaciones
-    agregadas al final durante la practica.</p>
+  <p class="nota">En el orden del archivo (no por masa), para comprobar las incorporaciones
+    agregadas al final durante la practica de CI/CD.</p>
   <div class="tabla-scroll">
   <table>
-    <thead><tr><th>id</th><th>name</th><th>recclass</th><th>mass (g)</th>
-      <th>fall</th><th>year</th><th>reclat</th><th>reclong</th></tr></thead>
+    <thead><tr><th>id</th><th>name</th><th>recclass</th><th class="num">mass (g)</th>
+      <th>fall</th><th class="num">year</th><th class="num">reclat</th><th class="num">reclong</th></tr></thead>
     <tbody>
-    {filas_ultimos10}
+    {filas_ultimos10_tbody}
     </tbody>
   </table>
   </div>
 
   <footer>
-    <p>Datos: <a href="{URL_FUENTE}">NASA Open Data &ndash; Meteorite Landings</a>,
-      con datos de The Meteoritical Society. "mass (g)" es la masa del meteorito en
-      gramos; los campos de masa, year, reclat y reclong pueden faltar en el
-      registro original (no se completan con 0).</p>
-    <p>Generado automaticamente por GitHub Actions a partir de datos/meteoritos.csv
-      del repositorio.</p>
+    <p>Datos: <a href="{URL_FUENTE}">NASA Open Data &ndash; Meteorite Landings</a>, con datos de
+      The Meteoritical Society. "mass (g)" es la masa del meteorito en gramos; los campos de
+      masa, year, reclat y reclong pueden faltar en el registro original (nunca se completan con 0).</p>
+    <p>Generado automaticamente por GitHub Actions a partir de <code>datos/meteoritos.csv</code>
+      del repositorio, en cada push a <code>main</code>.</p>
   </footer>
+</main>
 </body>
 </html>
 """

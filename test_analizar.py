@@ -205,8 +205,7 @@ class TestGeneracionDeInforme(unittest.TestCase):
             contenido = f.read()
 
         self.assertIn("Fabio Mavric", contenido)
-        self.assertIn("Copia educativa: contiene modificaciones simuladas", contenido)
-        self.assertIn("Commit: <code>local</code>", contenido)
+        self.assertIn("commit <code>local</code>", contenido)
         self.assertIn("Meteorito Tres", contenido)
         self.assertIn("sin dato", contenido)  # masa/year faltantes se muestran como tal
 
@@ -216,7 +215,7 @@ class TestGeneracionDeInforme(unittest.TestCase):
             analizar.main()
         with open("public/index.html", encoding="utf-8") as f:
             contenido = f.read()
-        self.assertIn("Commit: <code>abc1234</code>", contenido)
+        self.assertIn("commit <code>abc1234</code>", contenido)
 
     def test_main_no_escribe_informe_si_los_datos_son_invalidos(self):
         filas_invalidas = [fila("1", "Meteorito", "L5", "-100", "Found", "2000", "0", "0")]
